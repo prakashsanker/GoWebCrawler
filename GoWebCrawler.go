@@ -2,13 +2,29 @@ package main
 import (
 	"net/http"
 	"encoding/json"
+    "fmt"
+    "io/ioutil"
 )
 
 
 func main() {
 	getDuckDuckGo("food")
-    getGitHub("prakash")
+    getGitHub("defunkt")
 
+}
+
+type DuckDuckGoResponse struct {
+    RelatedTopics []struct {
+        Result string `json:"Result"`
+        FirstUrl string `json:"FirstURL"`
+        Text string `json:"Text"`
+    } `json:"RelatedTopics"`
+}
+
+type GitHubResponse struct {
+    Login string `json:"login"`
+    Email string `json:"email"`
+    Name string `json:"name"`
 }
 
 func getDuckDuckGo(k string) (map[string]interface{}, error) {
@@ -16,14 +32,27 @@ func getDuckDuckGo(k string) (map[string]interface{}, error) {
     if err != nil {
         return nil, err
     }
+    var duckDuckParsed DuckDuckGoResponse
+    jsonDataFromHttp, jsonErr := ioutil.ReadAll(resp.Body)
+
+    if jsonErr != nil {
+        fmt.Println("Json error!")
+    }
     defer resp.Body.Close()
 
-    r := make(map[string]interface{})
-    d := json.NewDecoder(resp.Body)
-    if err := d.Decode(&r); err != nil {
-        return nil, err
+
+    if err:= json.Unmarshal(jsonDataFromHttp, &duckDuckParsed); err != nil {
+        panic(err)
     }
-    return r, nil
+
+    fmt.Println(duckDuckParsed)
+
+    // r := make(map[string]interface{})
+    // d := json.NewDecoder(resp.Body)
+    // if err := d.Decode(&r); err != nil {
+    //     return nil, err
+    // }
+    return nil, nil
 }
 
 func getGitHub(k string) (map[string]interface{}, error) {
@@ -31,14 +60,18 @@ func getGitHub(k string) (map[string]interface{}, error) {
     if err != nil {
         return nil, err
     }
+
+    var githubParsed GitHubResponse
+    jsonDataFromHttp, jsonErr := ioutil.ReadAll(resp.Body)
+
     defer resp.Body.Close()
 
-    r := make(map[string]interface{})
-    d := json.NewDecoder(resp.Body)
-    if err := d.Decode(&r); err != nil {
-        return nil, err
+    if err:= json.Unmarshal(jsonDataFromHttp, &githubParsed); err != nil {
+        panic(err)
     }
-    return r, nil
+
+
+    return githubParsed, nil
 }
 
 
