@@ -8,10 +8,10 @@ import (
 
 
 func main() {
-	// getDuckDuckGo("food")
- //    getGitHub("defunkt")
-    fanIn(getDuckDuckGo("food"), getGitHub("defunkt"))
-
+    d := make(chan Response)
+    c := fanIn(getDuckDuckGo("food"), d) 
+    fmt.Println(<- c)
+    fmt.Println(<- c)
 }
 
 type DuckDuckGoResponse struct {
@@ -29,17 +29,20 @@ type GitHubResponse struct {
 }
 
 type Response struct {
-    GitHub GitHubResponse
-    DuckDuckGo DuckDuckGoResponse
+    DuckDuckGoResponse
+    GitHubResponse
 }
 
-func fanIn(input1 <- DuckDuckGoResponse, input2 <- GitHubResponse) <-chan string {
+func fanIn(input1 <-chan Response, input2 <-chan Response) <-chan string {
     c := make(chan string)
-
     go func() {
-        select {
-            case s := <- input1: c <- s
-            case s := <- input2: c <- s
+        for {
+            select {
+            case s := <-input1:
+                c <- s.RelatedTopics[0].Result
+            case s := <-input2:
+                c <- s.Name
+            }
         }
     }()
     return c
@@ -47,43 +50,59 @@ func fanIn(input1 <- DuckDuckGoResponse, input2 <- GitHubResponse) <-chan string
 
 
 func getDuckDuckGo(k string) <-chan Response {
-    resp, err := http.Get("http://api.duckduckgo.com/?q=" + k + "&format=json&pretty=1")
-    if err != nil {
-        return nil, err
-    }
-    c := make(chan DuckDuckGoResponse)
-    var duckDuckParsed DuckDuckGoResponse
-    jsonDataFromHttp, jsonErr := ioutil.ReadAll(resp.Body)
+    c := make(chan Response)
 
-    if jsonErr != nil {
-        fmt.Println("Json error!")
-    }
-    defer resp.Body.Close()
+    go func() {
+        resp, err := http.Get("http://api.duckduckgo.com/?q=" + k + "&format=json&pretty=1")
+        if err != nil {
+            fmt.Println(err)
+        }
+        var wrapper Response
+        var duckDuckParsed DuckDuckGoResponse
+        jsonDataFromHttp, jsonErr := ioutil.ReadAll(resp.Body)
+
+        if jsonErr != nil {
+            fmt.Println(jsonErr)
+        }
+        defer resp.Body.Close()
 
 
-    if err:= json.Unmarshal(jsonDataFromHttp, &duckDuckParsed); err != nil {
-        panic(err)
-    }
+        if err:= json.Unmarshal(jsonDataFromHttp, &duckDuckParsed); err != nil {
+            panic(err)
+        }
 
-    fmt.Println(duckDuckParsed)
+        wrapper.DuckDuckGoResponse = duckDuckParsed
+        c <- wrapper
+    } ()
+
     return c
 }
 
 func getGitHub(k string) <-chan Response {
-    resp, err := http.Get("https://api.github.com/users/?q=" + k)
-    if err != nil {
-        return nil, err
-    }
-    c := make(chan GitHubResponse)
+    c := make(chan Response)
+    go func() {
+        resp, err := http.Get("https://api.github.com/users/?q=" + k)
+        if err != nil {
+            fmt.Println(err)
+        }
 
-    var githubParsed GitHubResponse
-    jsonDataFromHttp, jsonErr := ioutil.ReadAll(resp.Body)
+        var githubParsed GitHubResponse
+        var wrapper Response
+        jsonDataFromHttp, jsonErr := ioutil.ReadAll(resp.Body)
 
-    defer resp.Body.Close()
+        if jsonErr != nil {
+            fmt.Println(jsonErr)
+        }
 
-    if err:= json.Unmarshal(jsonDataFromHttp, &githubParsed); err != nil {
-        panic(err)
-    }
+        defer resp.Body.Close()
+
+        if err:= json.Unmarshal(jsonDataFromHttp, &githubParsed); err != nil {
+            fmt.Println(err)
+        }
+        wrapper.GitHubResponse = githubParsed
+        c <- wrapper
+    }()
+ 
     return c
 }
 
