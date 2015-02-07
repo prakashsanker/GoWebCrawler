@@ -4,14 +4,39 @@ import (
 	"encoding/json"
     "fmt"
     "io/ioutil"
+    "gopkg.in/mgo.v2"
+    "gopkg.in/mgo.v2/bson"
 )
+
 
 
 func main() {
     d := make(chan Response)
     c := fanIn(getDuckDuckGo("food"), d) 
-    fmt.Println(<- c)
-    fmt.Println(<- c)
+
+
+    session, err := mgo.Dial("127.0.0.1")
+    if err != nil {
+        panic(err)
+    }
+    defer session.Close()
+
+    session.SetMode(mgo.Monotonic, true)
+
+    mongo := session.DB("goWebCrawlerDb").C("Responses")
+
+    addResponse(c, mongo)
+
+
+}
+
+func addResponse(writeChannel <- chan Response, collection Collection) {
+    go func() {
+        for n:= range writeChannel {
+            //write to mongo database
+            collection.Insert(n)
+        }
+    }()
 }
 
 type DuckDuckGoResponse struct {
@@ -33,15 +58,15 @@ type Response struct {
     GitHubResponse
 }
 
-func fanIn(input1 <-chan Response, input2 <-chan Response) <-chan string {
+func fanIn(input1 <-chan Response, input2 <-chan Response) <-chan Response {
     c := make(chan string)
     go func() {
         for {
             select {
             case s := <-input1:
-                c <- s.RelatedTopics[0].Result
+                c <- input1
             case s := <-input2:
-                c <- s.Name
+                c <- input2
             }
         }
     }()
